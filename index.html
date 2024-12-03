@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CSV File Splitter</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/material-design-lite/1.3.0/material.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/material-design-lite/1.3.0/material.min.js"></script>
+    <style>
+        body {
+            background-color: #121212;
+            color: rgba(255, 255, 255, 0.87);
+            font-family: 'Roboto', sans-serif;
+            margin: 0;
+            padding: 24px;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .card {
+            background-color: #1e1e1e;
+            border-radius: 8px;
+            padding: 24px;
+            margin-bottom: 24px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        .title {
+            color: #bb86fc;
+            margin-top: 0;
+        }
+        .subtitle {
+            color: #bb86fc;
+            font-size: 0.9em;
+            margin-top: -15px;
+        }
+        .input-field {
+            width: 100%;
+            padding: 12px;
+            margin: 8px 0;
+            background: #2d2d2d;
+            border: 1px solid #373737;
+            border-radius: 4px;
+            color: white;
+        }
+        .btn {
+            background-color: #bb86fc;
+            color: #000;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 500;
+            margin-top: 16px;
+        }
+        .btn:hover {
+            background-color: #9966cc;
+        }
+        #output {
+            white-space: pre-wrap;
+            font-family: monospace;
+            padding: 16px;
+            background-color: #2d2d2d;
+            border-radius: 4px;
+            margin-top: 16px;
+            display: none;
+        }
+        .dropzone {
+            border: 2px dashed #373737;
+            border-radius: 4px;
+            padding: 32px;
+            text-align: center;
+            margin: 16px 0;
+            background-color: #2d2d2d;
+        }
+        .dropzone.dragover {
+            border-color: #bb86fc;
+            background-color: rgba(187, 134, 252, 0.1);
+        }
+        .instructions {
+            background-color: #2d2d2d;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .instructions h3 {
+            color: #bb86fc;
+            margin-top: 0;
+        }
+        .instructions ul {
+            list-style-type: none;
+            padding-left: 0;
+        }
+        .instructions li {
+            margin-bottom: 10px;
+            padding-left: 20px;
+            position: relative;
+        }
+        .instructions li:before {
+            content: "•";
+            color: #bb86fc;
+            position: absolute;
+            left: 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <h1 class="title">CSV File Splitter</h1>
+            <p class="subtitle">Written by Jonas Lund, 2024</p>
+
+            <div class="instructions">
+                <h3>Description</h3>
+                <p>This web application is designed to split CSV files into multiple smaller files while preserving the header row in each part. It's ideal for breaking down large CSV files into more manageable chunks.</p>
+                
+                <h3>Instructions</h3>
+                <ul>
+                    <li>Upload your CSV files by either dragging and dropping them into the designated area or clicking to select them from your computer</li>
+                    <li>Enter the number of parts you want to split each file into (minimum 2)</li>
+                    <li>Click the "Split Files" button to process your files</li>
+                    <li>Each split part will automatically download to your computer</li>
+                </ul>
+
+                <h3>Expected Output</h3>
+                <ul>
+                    <li>For each CSV file, you'll receive multiple files named '[original_filename]_part_X.csv'</li>
+                    <li>Each part will contain an equal portion of the rows from the original file (±1 row due to rounding)</li>
+                    <li>All split files will include the original header row</li>
+                    <li>The application will display the number of rows in each split file</li>
+                </ul>
+
+                <h3>Features</h3>
+                <ul>
+                    <li>Supports multiple file processing at once</li>
+                    <li>Preserves CSV formatting and header rows</li>
+                    <li>Works entirely in your browser - no data is sent to any server</li>
+                    <li>Handles large files efficiently</li>
+                    <li>Compatible with all standard CSV files</li>
+                </ul>
+            </div>
+            
+            <div class="dropzone" id="dropzone">
+                Drop CSV files here or click to select
+                <input type="file" id="fileInput" accept=".csv" multiple style="display: none">
+            </div>
+
+            <input type="number" id="numParts" class="input-field" placeholder="Number of parts to split into" min="2" value="2">
+            <button id="splitButton" class="btn">Split Files</button>
+            
+            <div id="output"></div>
+        </div>
+    </div>
+
+    <script>
+        class CSVSplitter {
+            constructor() {
+                this.dropzone = document.getElementById('dropzone');
+                this.fileInput = document.getElementById('fileInput');
+                this.numPartsInput = document.getElementById('numParts');
+                this.splitButton = document.getElementById('splitButton');
+                this.output = document.getElementById('output');
+                
+                this.initializeEventListeners();
+            }
+
+            initializeEventListeners() {
+                this.dropzone.addEventListener('click', () => this.fileInput.click());
+                this.dropzone.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    this.dropzone.classList.add('dragover');
+                });
+                this.dropzone.addEventListener('dragleave', () => {
+                    this.dropzone.classList.remove('dragover');
+                });
+                this.dropzone.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    this.dropzone.classList.remove('dragover');
+                    const files = e.dataTransfer.files;
+                    this.handleFiles(files);
+                });
+                this.fileInput.addEventListener('change', (e) => {
+                    this.handleFiles(e.target.files);
+                });
+                this.splitButton.addEventListener('click', () => this.processFiles());
+            }
+
+            handleFiles(files) {
+                this.files = Array.from(files).filter(file => file.name.endsWith('.csv'));
+                this.updateDropzoneText();
+            }
+
+            updateDropzoneText() {
+                if (this.files && this.files.length > 0) {
+                    this.dropzone.textContent = `Selected ${this.files.length} CSV file(s)`;
+                } else {
+                    this.dropzone.textContent = 'Drop CSV files here or click to select';
+                }
+            }
+
+            async processFiles() {
+                if (!this.files || this.files.length === 0) {
+                    this.showOutput('Please select at least one CSV file.');
+                    return;
+                }
+
+                const numParts = parseInt(this.numPartsInput.value);
+                if (numParts < 2) {
+                    this.showOutput('Please enter a number greater than 1 for the number of parts.');
+                    return;
+                }
+
+                this.showOutput('Processing files...\n');
+                
+                for (const file of this.files) {
+                    await this.splitFile(file, numParts);
+                }
+            }
+
+            async splitFile(file, numParts) {
+                const text = await file.text();
+                const rows = text.split('\n');
+                const header = rows[0];
+                const dataRows = rows.slice(1).filter(row => row.trim());
+                
+                const rowsPerPart = Math.floor(dataRows.length / numParts);
+                const extraRows = dataRows.length % numParts;
+                
+                for (let i = 0; i < numParts; i++) {
+                    let startIdx = i * rowsPerPart;
+                    let endIdx = startIdx + rowsPerPart;
+                    if (i < extraRows) endIdx++;
+                    
+                    const partRows = [header, ...dataRows.slice(startIdx, endIdx)];
+                    const partContent = partRows.join('\n');
+                    
+                    const fileName = `${file.name.replace('.csv', '')}_part_${i + 1}.csv`;
+                    this.downloadFile(fileName, partContent);
+                    
+                    this.appendOutput(`Created ${fileName} with ${partRows.length - 1} rows`);
+                }
+            }
+
+            downloadFile(filename, content) {
+                const blob = new Blob([content], { type: 'text/csv' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }
+
+            showOutput(text) {
+                this.output.style.display = 'block';
+                this.output.textContent = text;
+            }
+
+            appendOutput(text) {
+                this.output.style.display = 'block';
+                this.output.textContent += '\n' + text;
+            }
+        }
+
+        // Initialize the application
+        new CSVSplitter();
+    </script>
+</body>
+</html>
